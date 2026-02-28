@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>元素パズルゲーム - Element Puzzle</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 400px;
+            color: white;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .score-area {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .combo-container {
+            background: rgba(255, 100, 100, 0.2);
+            padding: 8px 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.2s ease;
+        }
+
+        .combo-container.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .combo-container.pulse {
+            animation: comboPulse 0.3s ease;
+        }
+
+        @keyframes comboPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .combo-label {
+            font-size: 10px;
+            color: #ff6b6b;
+        }
+
+        .combo-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ff6b6b;
+        }
+
+        .score-container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .score-label {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .score-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+            transition: all 0.1s ease;
+        }
+
+        .score-value.pop {
+            animation: scorePop 0.3s ease;
+        }
+
+        @keyframes scorePop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); color: #ffdd59; }
+            100% { transform: scale(1); }
+        }
+
+        .game-wrapper {
+            position: relative;
+        }
+
+        #game-canvas {
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+            transition: transform 0.05s ease;
+        }
+
+        #game-canvas.shake {
+            animation: screenShake 0.3s ease;
+        }
+
+        @keyframes screenShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-5px) rotate(-0.5deg); }
+            40% { transform: translateX(5px) rotate(0.5deg); }
+            60% { transform: translateX(-3px) rotate(-0.3deg); }
+            80% { transform: translateX(3px) rotate(0.3deg); }
+        }
+
+        .next-element {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .next-label {
+            font-size: 12px;
+            color: #aaa;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .next-preview {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .next-preview.pulse {
+            animation: previewPulse 0.5s ease;
+        }
+
+        @keyframes previewPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .next-element-name {
+            font-size: 12px;
+            color: #ccc;
+            margin-top: 2px;
+            white-space: nowrap;
+        }
+
+        .next-next-preview {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            opacity: 0.6;
+            margin-left: 5px;
+            flex-shrink: 0;
+        }
+
+        .next-next-label {
+            font-size: 10px;
+            color: #888;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .next-next-element-name {
+            font-size: 10px;
+            color: #aaa;
+            white-space: nowrap;
+        }
+
+        .element-guide {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            max-width: 400px;
+            margin-top: 10px;
+        }
+
+        .guide-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            width: 42px;
+            gap: 2px;
+            opacity: 0.25;
+            filter: grayscale(1) brightness(0.5);
+            transition: opacity 0.25s ease, filter 0.25s ease, transform 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+
+        .guide-item.discovered {
+            opacity: 1;
+            filter: none;
+        }
+
+        .guide-item.discovered.pop {
+            animation: guidePop 0.4s ease;
+        }
+
+        @keyframes guidePop {
+            0% { transform: scale(1); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+            50% { transform: scale(1.2); box-shadow: 0 0 12px rgba(255, 255, 255, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+        }
+
+        .guide-symbol {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        }
+
+        .guide-name {
+            font-size: 9px;
+            color: #cccccc;
+            text-align: center;
+            line-height: 1.1;
+        }
+
+        .game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            border-radius: 15px;
+            z-index: 100;
+        }
+
+        .game-over-overlay.show {
+            display: flex;
+        }
+
+        .game-over-text {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ff4757;
+            margin-bottom: 20px;
+        }
+
+        .final-score {
+            font-size: 24px;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .max-combo {
+            font-size: 18px;
+            color: #ff6b6b;
+            margin-bottom: 30px;
+        }
+
+        .restart-btn {
+            padding: 15px 40px;
+            font-size: 18px;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            border: none;
+            border-radius: 30px;
+            color: #1a1a2e;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .danger-line {
+            position: absolute;
+            top: 80px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 71, 87, 0.5);
+            z-index: 10;
+        }
+
+        .danger-line::before {
+            content: '⚠️ DANGER';
+            position: absolute;
+            right: 10px;
+            top: -10px;
+            font-size: 10px;
+            color: #ff4757;
+        }
+
+        .instructions {
+            color: #888;
+            font-size: 12px;
+            text-align: center;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <div class="title">元素パズル</div>
+            <div class="score-area">
+                <div class="next-element">
+                    <span class="next-label">NEXT</span>
+                    <div class="next-preview" id="next-preview">H</div>
+                    <div class="next-element-name" id="next-element-name">水素</div>
+                </div>
+                <div class="combo-container" id="combo-container">
+                    <div class="combo-label">COMBO</div>
+                    <div class="combo-value" id="combo-value">x1</div>
+                </div>
+                <div class="score-container">
+                    <div class="score-label">SCORE</div>
+                    <div class="score-value" id="score">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="game-wrapper">
+            <div class="danger-line"></div>
+            <canvas id="game-canvas"></canvas>
+            <div class="game-over-overlay" id="game-over">
+                <div class="game-over-text">GAME OVER</div>
+                <div class="final-score">スコア: <span id="final-score">0</span></div>
+                <div class="max-combo">最大コンボ: <span id="max-combo">0</span></div>
+                <button class="restart-btn" onclick="restartGame()">もう一度プレイ</button>
+            </div>
+        </div>
+
+        <div class="element-guide" id="element-guide"></div>
+
+        <div class="instructions">
+            クリックで元素を落とす | 同じ元素がぶつかると合体して次の元素に進化！ | 連続コンボでスコアアップ！
+        </div>
+    </div>
+
+    <script>
+        // Element data with colors (periodic table order)
+        const ELEMENTS = [
+            { symbol: 'H', name: '水素', color: '#ff6b6b', radius: 18 },
+            { symbol: 'He', name: 'ヘリウム', color: '#ffa502', radius: 22 },
+            { symbol: 'Li', name: 'リチウム', color: '#ffdd59', radius: 26 },
+            { symbol: 'Be', name: 'ベリリウム', color: '#7bed9f', radius: 30 },
+            { symbol: 'B', name: 'ホウ素', color: '#2ed573', radius: 34 },
+            { symbol: 'C', name: '炭素', color: '#1e90ff', radius: 38 },
+            { symbol: 'N', name: '窒素', color: '#5352ed', radius: 42 },
+            { symbol: 'O', name: '酸素', color: '#a55eea', radius: 46 },
+            { symbol: 'F', name: 'フッ素', color: '#ff4757', radius: 50 },
+            { symbol: 'Ne', name: 'ネオン', color: '#ff6b9d', radius: 54 },
+            { symbol: 'Na', name: 'ナトリウム', color: '#c44569', radius: 58 },
+            { symbol: 'Mg', name: 'マグネシウム', color: '#45aaf2', radius: 62 },
+            { symbol: 'Al', name: 'アルミニウム', color: '#778ca3', radius: 66 },
+            { symbol: 'Si', name: 'ケイ素', color: '#a5b1c2', radius: 70 },
+            { symbol: 'P', name: 'リン', color: '#f7b731', radius: 74 },
+            { symbol: 'S', name: '硫黄', color: '#fed330', radius: 78 },
+            { symbol: 'Cl', name: '塩素', color: '#26de81', radius: 82 },
+            { symbol: 'Ar', name: 'アルゴン', color: '#9b59b6', radius: 90 }
+        ];
+
+        // Game constants
+        const CANVAS_WIDTH = 400;
+        const CANVAS_HEIGHT = 600;
+        const WALL_THICKNESS = 20;
+        const DANGER_LINE_Y = 80;
+        const DROP_DELAY = 500;
+        const COMBO_TIMEOUT = 1500; // コンボ継続時間（ms）
+
+        // Matter.js modules
+        const { Engine, Render, Runner, Bodies, Body, Composite, Events, Mouse, Vector } = Matter;
+
+        // Game state
+        let engine, render, runner;
+        let score = 0;
+        let currentElement = 0;
+        let nextElement = 0;
+        let nextNextElement = 0;
+        let canDrop = true;
+        let gameOver = false;
+        let dropX = CANVAS_WIDTH / 2;
+        let mergedPairs = new Set();
+
+        // Collection state (elements the user has created)
+        const discoveredElements = new Array(ELEMENTS.length).fill(false);
+
+        // Combo system
+        let combo = 0;
+        let maxCombo = 0;
+        let comboTimer = null;
+        let lastMergeTime = 0;
+
+        // Particle system
+        let particles = [];
+
+        // Initialize element guide
+        function initElementGuide() {
+            const guide = document.getElementById('element-guide');
+            guide.innerHTML = '';
+            ELEMENTS.forEach((el, index) => {
+                const item = document.createElement('div');
+                item.className = 'guide-item';
+                item.dataset.index = index;
+                item.title = `${el.name} (${index + 1})`;
+
+                const symbolEl = document.createElement('div');
+                symbolEl.className = 'guide-symbol';
+                symbolEl.textContent = el.symbol;
+                symbolEl.style.background = el.color;
+
+                const nameEl = document.createElement('div');
+                nameEl.className = 'guide-name';
+                nameEl.textContent = el.name;
+
+                item.appendChild(symbolEl);
+                item.appendChild(nameEl);
+
+                if (discoveredElements[index]) {
+                    item.classList.add('discovered');
+                }
+
+                guide.appendChild(item);
+            });
+        }
+
+        // Mark element as discovered in the collection guide
+        function markElementDiscovered(elementIndex) {
+            if (discoveredElements[elementIndex]) return;
+            discoveredElements[elementIndex] = true;
+
+            const guide = document.getElementById('element-guide');
+            if (!guide) return;
+            const item = guide.querySelector(`.guide-item[data-index="${elementIndex}"]`);
+            if (!item) return;
+
+            item.classList.add('discovered');
+            item.classList.remove('pop');
+            // reflow to restart animation
+            void item.offsetWidth;
+            item.classList.add('pop');
+        }
+
+        // Particle class
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.vx = (Math.random() - 0.5) * 15;
+                this.vy = (Math.random() - 0.5) * 15 - 5;
+                this.life = 1;
+                this.decay = 0.02 + Math.random() * 0.02;
+                this.size = 3 + Math.random() * 5;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += 0.3; // gravity
+                this.life -= this.decay;
+                this.size *= 0.97;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Floating text class
+        class FloatingText {
+            constructor(x, y, text, color) {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.color = color;
+                this.life = 1;
+                this.vy = -2;
+            }
+
+            update() {
+                this.y += this.vy;
+                this.life -= 0.02;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        let floatingTexts = [];
+
+        // Create merge effect
+        function createMergeEffect(x, y, color, points) {
+            // Create particles
+            for (let i = 0; i < 20; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+
+            // Create ring effect particles
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2;
+                const p = new Particle(x, y, '#ffffff');
+                p.vx = Math.cos(angle) * 8;
+                p.vy = Math.sin(angle) * 8;
+                p.size = 4;
+                p.decay = 0.04;
+                particles.push(p);
+            }
+
+            // Floating score text
+            const comboMultiplier = Math.max(1, combo);
+            const totalPoints = points * comboMultiplier;
+            floatingTexts.push(new FloatingText(x, y - 30, `+${totalPoints}`, color));
+
+            if (combo > 1) {
+                floatingTexts.push(new FloatingText(x, y - 55, `x${combo} COMBO!`, '#ff6b6b'));
+            }
+
+            // Screen shake
+            const canvas = document.getElementById('game-canvas');
+            canvas.classList.add('shake');
+            setTimeout(() => canvas.classList.remove('shake'), 300);
+        }
+
+        // Update combo
+        function updateCombo() {
+            combo++;
+            if (combo > maxCombo) {
+                maxCombo = combo;
+            }
+
+            // Update UI
+            const comboContainer = document.getElementById('combo-container');
+            const comboValue = document.getElementById('combo-value');
+
+            comboContainer.classList.add('active');
+            comboContainer.classList.remove('pulse');
+            void comboContainer.offsetWidth; // Force reflow
+            comboContainer.classList.add('pulse');
+
+            comboValue.textContent = `x${combo}`;
+
+            // Reset combo timer
+            if (comboTimer) clearTimeout(comboTimer);
+            comboTimer = setTimeout(() => {
+                combo = 0;
+                comboContainer.classList.remove('active');
+            }, COMBO_TIMEOUT);
+        }
+
+        // Update score display
+        function updateScore(points) {
+            const comboMultiplier = Math.max(1, combo);
+            score += points * comboMultiplier;
+
+            const scoreEl = document.getElementById('score');
+            scoreEl.textContent = score;
+            scoreEl.classList.remove('pop');
+            void scoreEl.offsetWidth;
+            scoreEl.classList.add('pop');
+        }
+
+        // Create element ball
+        function createBall(x, y, elementIndex, isStatic = false) {
+            const element = ELEMENTS[elementIndex];
+            markElementDiscovered(elementIndex);
+            const ball = Bodies.circle(x, y, element.radius, {
+                restitution: 0.3,
+                friction: 0.5,
+                frictionAir: 0.01,
+                isStatic: isStatic,
+                label: 'ball',
+                render: {
+                    fillStyle: element.color
+                },
+                plugin: {
+                    elementIndex: elementIndex,
+                    createdAt: Date.now()
+                }
+            });
+            return ball;
+        }
+
+        // Draw element symbols and effects
+        function drawElementSymbols() {
+            const ctx = render.context;
+            const bodies = Composite.allBodies(engine.world);
+
+            bodies.forEach(body => {
+                if (body.label === 'ball' && body.plugin && body.plugin.elementIndex !== undefined) {
+                    const element = ELEMENTS[body.plugin.elementIndex];
+                    ctx.save();
+                    ctx.translate(body.position.x, body.position.y);
+                    ctx.rotate(body.angle);
+
+                    // Draw symbol
+                    ctx.fillStyle = 'white';
+                    ctx.font = `bold ${element.radius * 0.8}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(element.symbol, 0, 0);
+
+                    ctx.restore();
+                }
+            });
+
+            // Draw preview ball at top (following mouse)
+            if (canDrop && !gameOver) {
+                const element = ELEMENTS[currentElement];
+                const previewY = 50;
+                const clampedX = Math.max(WALL_THICKNESS + element.radius,
+                                          Math.min(CANVAS_WIDTH - WALL_THICKNESS - element.radius, dropX));
+
+                ctx.save();
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.arc(clampedX, previewY, element.radius, 0, Math.PI * 2);
+                ctx.fillStyle = element.color;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = 'white';
+                ctx.font = `bold ${element.radius * 0.8}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(element.symbol, clampedX, previewY);
+
+                ctx.beginPath();
+                ctx.setLineDash([5, 5]);
+                ctx.moveTo(clampedX, previewY + element.radius);
+                ctx.lineTo(clampedX, CANVAS_HEIGHT - WALL_THICKNESS);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.restore();
+            }
+
+            // Update and draw particles
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => {
+                p.update();
+                p.draw(ctx);
+            });
+
+            // Update and draw floating texts
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
+            floatingTexts.forEach(t => {
+                t.update();
+                t.draw(ctx);
+            });
+        }
+
+        // Update next element preview
+        function updateNextPreview() {
+            const preview = document.getElementById('next-preview');
+            const nameEl = document.getElementById('next-element-name');
+            const element = ELEMENTS[nextElement];
+            preview.textContent = element.symbol;
+            preview.style.background = element.color;
+            nameEl.textContent = element.name;
+
+            // Add pulse animation
+            preview.classList.remove('pulse');
+            void preview.offsetWidth;
+            preview.classList.add('pulse');
+        }
+
+        // Random element (only first 5 elements can be dropped: H 〜 B)
+        function getRandomElement() {
+            return Math.floor(Math.random() * 5);
+        }
+
+        // Drop current element
+        function dropElement(x) {
+            if (!canDrop || gameOver) return;
+
+            canDrop = false;
+            const clampedX = Math.max(WALL_THICKNESS + ELEMENTS[currentElement].radius,
+                                       Math.min(CANVAS_WIDTH - WALL_THICKNESS - ELEMENTS[currentElement].radius, x));
+
+            const ball = createBall(clampedX, 50, currentElement);
+            Composite.add(engine.world, ball);
+
+            currentElement = nextElement;
+            nextElement = nextNextElement;
+            nextNextElement = getRandomElement();
+            updateNextPreview();
+
+            setTimeout(() => {
+                canDrop = true;
+            }, DROP_DELAY);
+        }
+
+        // Check for game over
+        function checkGameOver() {
+            const bodies = Composite.allBodies(engine.world);
+            const now = Date.now();
+
+            for (const body of bodies) {
+                if (body.label === 'ball' && !body.isStatic) {
+                    const ballAge = now - (body.plugin.createdAt || 0);
+                    if (ballAge < 2000) continue;
+
+                    if (body.position.y - ELEMENTS[body.plugin.elementIndex].radius < DANGER_LINE_Y) {
+                        const speed = Vector.magnitude(body.velocity);
+                        if (speed < 0.5) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Handle collision and merge
+        function handleCollision(event) {
+            const pairs = event.pairs;
+
+            pairs.forEach(pair => {
+                const { bodyA, bodyB } = pair;
+
+                if (bodyA.label === 'ball' && bodyB.label === 'ball') {
+                    const indexA = bodyA.plugin?.elementIndex;
+                    const indexB = bodyB.plugin?.elementIndex;
+
+                    if (indexA !== undefined && indexB !== undefined && indexA === indexB) {
+                        const pairId = [bodyA.id, bodyB.id].sort().join('-');
+
+                        if (!mergedPairs.has(pairId)) {
+                            mergedPairs.add(pairId);
+
+                            const newIndex = indexA + 1;
+
+                            if (newIndex < ELEMENTS.length) {
+                                const newX = (bodyA.position.x + bodyB.position.x) / 2;
+                                const newY = (bodyA.position.y + bodyB.position.y) / 2;
+                                const newVx = (bodyA.velocity.x + bodyB.velocity.x) / 2;
+                                const newVy = (bodyA.velocity.y + bodyB.velocity.y) / 2;
+
+                                Composite.remove(engine.world, bodyA);
+                                Composite.remove(engine.world, bodyB);
+
+                                const newBall = createBall(newX, newY, newIndex);
+                                Body.setVelocity(newBall, { x: newVx, y: newVy });
+                                Composite.add(engine.world, newBall);
+
+                                // Update combo and create effect
+                                updateCombo();
+                                const points = (newIndex + 1) * 10;
+                                createMergeEffect(newX, newY, ELEMENTS[newIndex].color, points);
+                                updateScore(points);
+
+                                setTimeout(() => {
+                                    mergedPairs.delete(pairId);
+                                }, 100);
+                            } else {
+                                updateCombo();
+                                createMergeEffect(
+                                    (bodyA.position.x + bodyB.position.x) / 2,
+                                    (bodyA.position.y + bodyB.position.y) / 2,
+                                    '#ffd700',
+                                    500
+                                );
+                                updateScore(500);
+                                mergedPairs.delete(pairId);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize game
+        function initGame() {
+            score = 0;
+            currentElement = getRandomElement();
+            nextElement = getRandomElement();
+            nextNextElement = getRandomElement();
+            canDrop = true;
+            gameOver = false;
+            mergedPairs.clear();
+            particles = [];
+            floatingTexts = [];
+            combo = 0;
+            maxCombo = 0;
+
+            document.getElementById('score').textContent = '0';
+            document.getElementById('game-over').classList.remove('show');
+            document.getElementById('combo-container').classList.remove('active');
+
+            engine = Engine.create({
+                gravity: { x: 0, y: 1 }
+            });
+
+            const canvas = document.getElementById('game-canvas');
+            render = Render.create({
+                canvas: canvas,
+                engine: engine,
+                options: {
+                    width: CANVAS_WIDTH,
+                    height: CANVAS_HEIGHT,
+                    wireframes: false,
+                    background: '#1a1a2e'
+                }
+            });
+
+            const wallOptions = {
+                isStatic: true,
+                render: { fillStyle: '#2d3436' },
+                label: 'wall'
+            };
+
+            const floor = Bodies.rectangle(
+                CANVAS_WIDTH / 2,
+                CANVAS_HEIGHT - WALL_THICKNESS / 2,
+                CANVAS_WIDTH,
+                WALL_THICKNESS,
+                wallOptions
+            );
+
+            const leftWall = Bodies.rectangle(
+                WALL_THICKNESS / 2,
+                CANVAS_HEIGHT / 2,
+                WALL_THICKNESS,
+                CANVAS_HEIGHT,
+                wallOptions
+            );
+
+            const rightWall = Bodies.rectangle(
+                CANVAS_WIDTH - WALL_THICKNESS / 2,
+                CANVAS_HEIGHT / 2,
+                WALL_THICKNESS,
+                CANVAS_HEIGHT,
+                wallOptions
+            );
+
+            Composite.add(engine.world, [floor, leftWall, rightWall]);
+
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                dropX = e.clientX - rect.left;
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                dropX = touch.clientX - rect.left;
+            });
+
+            canvas.addEventListener('click', (e) => {
+                if (gameOver) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                dropElement(x);
+            });
+
+            canvas.addEventListener('touchstart', (e) => {
+                if (gameOver) return;
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const x = touch.clientX - rect.left;
+                dropX = x;
+                dropElement(x);
+            });
+
+            Events.on(engine, 'collisionStart', handleCollision);
+
+            // 同じ元素同士をゆるく引き寄せる
+            Events.on(engine, 'beforeUpdate', () => {
+                if (!engine) return;
+
+                const bodies = Composite.allBodies(engine.world);
+                const groups = {};
+
+                // 同じ元素ごとにボールをグループ分け
+                for (const body of bodies) {
+                    if (body.label !== 'ball' || !body.plugin || body.plugin.elementIndex === undefined) continue;
+                    const idx = body.plugin.elementIndex;
+                    if (!groups[idx]) groups[idx] = [];
+                    groups[idx].push(body);
+                }
+
+                const MAX_DISTANCE_FACTOR = 4; // 半径合計の何倍まで引き寄せ対象にするか
+                const BASE_FORCE = 0.000003;   // 引力の強さ（少しだけ強めに）
+
+                for (const key in groups) {
+                    const group = groups[key];
+                    const len = group.length;
+                    if (len < 2) continue;
+
+                    for (let i = 0; i < len; i++) {
+                        const bodyA = group[i];
+
+                        // A にとって最も近い同じ元素ボールを1つだけ見る
+                        let nearest = null;
+                        let nearestDistSq = Infinity;
+
+                        for (let j = 0; j < len; j++) {
+                            if (i === j) continue;
+                            const bodyB = group[j];
+                            const dx = bodyB.position.x - bodyA.position.x;
+                            const dy = bodyB.position.y - bodyA.position.y;
+                            const distSq = dx * dx + dy * dy;
+                            if (distSq < nearestDistSq) {
+                                nearestDistSq = distSq;
+                                nearest = bodyB;
+                            }
+                        }
+
+                        if (!nearest || nearestDistSq === Infinity) continue;
+
+                        const elementIndex = bodyA.plugin.elementIndex;
+                        const el = ELEMENTS[elementIndex];
+                        const el2 = ELEMENTS[nearest.plugin.elementIndex];
+                        const maxDist = (el.radius + el2.radius) * MAX_DISTANCE_FACTOR;
+                        const maxDistSq = maxDist * maxDist;
+
+                        if (nearestDistSq > maxDistSq) continue;
+
+                        // あまり激しく動いているときは引力をかけない
+                        const speedA = Vector.magnitude(bodyA.velocity);
+                        const speedB = Vector.magnitude(nearest.velocity);
+                        if (speedA > 1.0 || speedB > 1.0) continue;
+
+                        const dist = Math.sqrt(nearestDistSq) || 0.0001;
+                        let dx = (nearest.position.x - bodyA.position.x) / dist;
+                        let dy = (nearest.position.y - bodyA.position.y) / dist;
+
+                        // 縦方向は少し弱めて、横に寄っていきやすくする
+                        dy *= 0.5;
+
+                        const forceMag = BASE_FORCE / (dist + 1);
+                        const fx = dx * forceMag;
+                        const fy = dy * forceMag;
+
+                        Body.applyForce(bodyA, bodyA.position, { x: fx, y: fy });
+                        Body.applyForce(nearest, nearest.position, { x: -fx, y: -fy });
+                    }
+                }
+            });
+
+            Events.on(render, 'afterRender', () => {
+                drawElementSymbols();
+
+                if (!gameOver && checkGameOver()) {
+                    gameOver = true;
+                    document.getElementById('final-score').textContent = score;
+                    document.getElementById('max-combo').textContent = maxCombo;
+                    document.getElementById('game-over').classList.add('show');
+                }
+            });
+
+            updateNextPreview();
+
+            runner = Runner.create();
+            Runner.run(runner, engine);
+            Render.run(render);
+        }
+
+        // Restart game
+        function restartGame() {
+            if (runner) Runner.stop(runner);
+            if (render) Render.stop(render);
+            if (engine) Engine.clear(engine);
+            if (comboTimer) clearTimeout(comboTimer);
+
+            initGame();
+        }
+
+        // Start game
+        initElementGuide();
+        initGame();
+    </script>
+
+<script>
+/**
+ * Iframe 元素高亮注入脚本
+ * 需要在目标网站中引入此脚本来支持跨域 iframe 高亮功能
+ *
+ * 使用方法：
+ * 1. 将此脚本添加到目标网站的 HTML 中
+ * 2. 或通过浏览器扩展、用户脚本等方式注入
+ */
+
+(function () {
+  "use strict";
+
+  // 检查是否在 iframe 中
+  if (window.self === window.top) {
+    return; // 不在 iframe 中，不执行
+  }
+
+  // 检查是否已经初始化过
+  if (window.__iframeHighlightInitialized) {
+    return;
+  }
+  window.__iframeHighlightInitialized = true;
+  console.log("Iframe 高亮脚本已加载");
+
+  // 创建高亮覆盖层
+  var overlay = document.createElement("div");
+  overlay.id = "iframe-highlight-overlay";
+  overlay.style.cssText = "\n    position: fixed;\n    top: 0;\n    left: 0;\n    width: 100vw;\n    height: 100vh;\n    pointer-events: none;\n    z-index: 999999;\n    overflow: hidden;\n  ";
+
+  // 创建悬停高亮框（虚线边框）
+  var highlightBox = document.createElement("div");
+  highlightBox.id = "iframe-highlight-box";
+  highlightBox.style.cssText = "\n    position: absolute;\n    border: 2px dashed #007AFF;\n    background: rgba(0, 122, 255, 0.08);\n    pointer-events: none;\n    display: none;\n    transition: all 0.1s ease;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);\n    border-radius: 2px;\n  ";
+
+  // 创建选中节点的常驻高亮框（实线边框）
+  var selectedBox = document.createElement("div");
+  selectedBox.id = "iframe-selected-box";
+  selectedBox.style.cssText = "\n    position: absolute;\n    border: 2px solid #007AFF;\n    pointer-events: none;\n    display: none;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 107, 53, 0.4);\n    border-radius: 2px;\n    z-index: 1000000;\n  ";
+
+  // 创建悬停标签显示
+  var tagLabel = document.createElement("div");
+  tagLabel.id = "iframe-tag-label";
+  tagLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 2px 6px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 2px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000001;\n    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);\n    font-weight: 500;\n  ";
+
+  // 创建选中节点标签
+  var selectedLabel = document.createElement("div");
+  selectedLabel.id = "iframe-selected-label";
+  selectedLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 3px 8px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 3px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000002;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\n    font-weight: 600;\n  ";
+  overlay.appendChild(highlightBox);
+  overlay.appendChild(selectedBox);
+  overlay.appendChild(tagLabel);
+  overlay.appendChild(selectedLabel);
+  document.body.appendChild(overlay);
+
+  // 存储当前选中的元素
+  var selectedElement = null;
+  var highlightEnabled = false;
+
+  // 更新选中元素的高亮显示
+  function updateSelectedHighlight(element) {
+    console.log("updateSelectedHighlight called with:", element);
+    if (!element) {
+      selectedBox.style.display = "none";
+      selectedLabel.style.display = "none";
+      selectedElement = null;
+      console.log("Cleared selected highlight");
+      return;
+    }
+    selectedElement = element;
+    var rect = element.getBoundingClientRect();
+    console.log("Selected element rect:", rect);
+
+    // 更新选中高亮框位置
+    selectedBox.style.display = "block";
+    selectedBox.style.left = "".concat(rect.left - 2, "px");
+    selectedBox.style.top = "".concat(rect.top - 2, "px");
+    selectedBox.style.width = "".concat(rect.width + 4, "px");
+    selectedBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新选中标签位置和内容
+    selectedLabel.style.display = "block";
+    selectedLabel.textContent = "\u2713 <".concat(element.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 28;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 5) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    var labelWidth = selectedLabel.offsetWidth || 100; // 预估宽度
+    if (labelLeft + labelWidth > window.innerWidth - 10) {
+      labelLeft = window.innerWidth - labelWidth - 10;
+    }
+    selectedLabel.style.left = "".concat(Math.max(5, labelLeft), "px");
+    selectedLabel.style.top = "".concat(labelTop, "px");
+    console.log("Selected highlight positioned at:", {
+      left: selectedBox.style.left,
+      top: selectedBox.style.top,
+      width: selectedBox.style.width,
+      height: selectedBox.style.height
+    });
+  }
+  function getElementSelector(element) {
+    if (!(element instanceof Element)) throw new Error('Argument must be a DOM element');
+    var segments = [];
+    var current = element;
+    while (current !== document.documentElement) {
+      var selector = '';
+      // 优先检查唯一ID
+      if (current.id && document.querySelectorAll("#".concat(current.id)).length === 1) {
+        segments.unshift("#".concat(current.id));
+        break; // ID唯一，无需继续向上
+      }
+
+      // 生成类名选择器（取第一个有效类名）
+      var classes = Array.from(current.classList).filter(function (c) {
+        return !c.startsWith('js-');
+      });
+      var className = classes.length > 0 ? ".".concat(classes[0]) : '';
+
+      // 生成位置索引（nth-child）
+      var tag = current.tagName.toLowerCase();
+      if (!className) {
+        var siblings = Array.from(current.parentNode.children);
+        var index = siblings.findIndex(function (el) {
+          return el === current;
+        }) + 1;
+        selector = "".concat(tag, ":nth-child(").concat(index, ")");
+      } else {
+        selector = className;
+      }
+      segments.unshift(selector);
+      current = current.parentElement;
+    }
+
+    // 处理根元素
+    if (current === document.documentElement) {
+      segments.unshift('html');
+    }
+    return segments.join(' > ');
+  }
+
+  // 获取元素文本内容
+  function getElementText(element) {
+    var _element$textContent;
+    if (element.tagName === "INPUT") {
+      return element.value || element.placeholder || "";
+    }
+    if (element.tagName === "TEXTAREA") {
+      return element.value || element.placeholder || "";
+    }
+    var text = ((_element$textContent = element.textContent) === null || _element$textContent === void 0 ? void 0 : _element$textContent.trim()) || "";
+    return text.length > 50 ? text.substring(0, 50) + "..." : text;
+  }
+
+  // 获取元素属性信息
+  function getElementAttributes(element) {
+    var attrs = {};
+    for (var i = 0; i < element.attributes.length; i++) {
+      var attr = element.attributes[i];
+      attrs[attr.name] = attr.value;
+    }
+    return attrs;
+  }
+
+  // 鼠标悬停事件处理
+  function handleMouseOver(e) {
+    if (!highlightEnabled) return;
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免高亮 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 如果是已选中的元素，不显示悬停高亮
+    if (target === selectedElement) {
+      highlightBox.style.display = "none";
+      tagLabel.style.display = "none";
+      return;
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+
+    // 更新悬停高亮框位置
+    highlightBox.style.display = "block";
+    highlightBox.style.left = "".concat(rect.left - 2, "px");
+    highlightBox.style.top = "".concat(rect.top - 2, "px");
+    highlightBox.style.width = "".concat(rect.width + 4, "px");
+    highlightBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新标签位置和内容
+    tagLabel.style.display = "block";
+    tagLabel.textContent = "<".concat(target.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 22;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 0) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    if (labelLeft + tagLabel.offsetWidth > window.innerWidth) {
+      labelLeft = window.innerWidth - tagLabel.offsetWidth - 5;
+    }
+    tagLabel.style.left = "".concat(Math.max(0, labelLeft), "px");
+    tagLabel.style.top = "".concat(labelTop, "px");
+
+    // 发送消息到父窗口
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 鼠标离开事件处理
+  function handleMouseOut(e) {
+    if (!highlightEnabled) return;
+    var relatedTarget = e.relatedTarget;
+
+    // 如果鼠标移动到高亮相关元素上，不隐藏高亮
+    if (relatedTarget && (relatedTarget === highlightBox || relatedTarget === tagLabel || relatedTarget === overlay || relatedTarget === selectedBox || relatedTarget === selectedLabel)) {
+      return;
+    }
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: null,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 点击事件处理
+  function handleClick(e) {
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免处理 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 检查是否是交互元素，这些元素需要保留默认行为
+    var isInteractiveElement = ['input', 'textarea', 'select', 'button', 'a'].includes(target.tagName.toLowerCase());
+
+    // 如果高亮功能启用，对于非交互元素阻止默认行为和事件传播
+    if (highlightEnabled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+    console.log("Element clicked:", {
+      tagName: target.tagName,
+      selector: selector,
+      rect: rect
+    });
+
+    // 立即更新选中高亮
+    updateSelectedHighlight(target);
+
+    // 隐藏悬停高亮，因为现在是选中状态
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-click",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 监听来自父窗口的消息
+  function handleParentMessage(event) {
+    console.log("Received message from parent:", event.data);
+    if (event.data.type === "iframe-highlight-toggle") {
+      var enabled = event.data.enabled;
+      console.log("Highlight toggle:", enabled);
+      if (enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "enable-iframe-highlight") {
+      console.log("Enable iframe highlight");
+      enableHighlight();
+    } else if (event.data.type === "disable-iframe-highlight") {
+      console.log("Disable iframe highlight");
+      disableHighlight();
+    } else if (event.data.type === "toggle-iframe-highlight") {
+      var _enabled = event.data.enabled !== undefined ? event.data.enabled : !highlightEnabled;
+      console.log("Toggle iframe highlight to:", _enabled);
+      if (_enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "update-selected-element") {
+      var selector = event.data.selector;
+      console.log("Update selected element with selector:", selector);
+      if (selector) {
+        try {
+          var element = document.querySelector(selector);
+          console.log("Found element by selector:", element);
+          updateSelectedHighlight(element);
+        } catch (error) {
+          console.warn("Failed to select element:", error);
+          updateSelectedHighlight(null);
+        }
+      } else {
+        updateSelectedHighlight(null);
+      }
+    } else if (event.data.type === "clear-selected-element") {
+      console.log("Clear selected element");
+      updateSelectedHighlight(null);
+    }
+  }
+
+  // 启用高亮功能
+  function enableHighlight() {
+    console.log("Enabling highlight");
+    document.addEventListener("mouseover", handleMouseOver, true);
+    document.addEventListener("mouseout", handleMouseOut, true);
+    document.addEventListener("click", handleClick, true);
+    highlightEnabled = true;
+    overlay.style.display = "block";
+  }
+
+  // 禁用高亮功能
+  function disableHighlight() {
+    console.log("Disabling highlight");
+    highlightEnabled = false;
+    // 保持事件监听器，但通过 highlightEnabled 变量控制行为
+    // 这样可以保留选中状态的显示
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    // 不隐藏 selectedBox 和 selectedLabel，保留选中状态
+  }
+
+  // 完全禁用高亮功能（移除所有监听器）
+  function fullyDisableHighlight() {
+    console.log("Fully disabling highlight");
+    highlightEnabled = false;
+    document.removeEventListener("mouseover", handleMouseOver, true);
+    document.removeEventListener("mouseout", handleMouseOut, true);
+    document.removeEventListener("click", handleClick, true);
+    overlay.style.display = "none";
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    selectedBox.style.display = "none";
+    selectedLabel.style.display = "none";
+  }
+
+  // 添加事件监听
+  enableHighlight();
+  window.addEventListener("message", handleParentMessage);
+
+  // 暴露全局函数供外部调用
+  window.__iframeHighlightControl = {
+    enable: enableHighlight,
+    disable: disableHighlight,
+    fullyDisable: fullyDisableHighlight,
+    isEnabled: function isEnabled() {
+      return highlightEnabled;
+    },
+    getSelectedElement: function getSelectedElement() {
+      return selectedElement;
+    },
+    updateSelected: updateSelectedHighlight,
+    // 通过消息发送开关控制
+    sendToggleMessage: function sendToggleMessage(enabled) {
+      window.parent.postMessage({
+        type: 'iframe-highlight-status',
+        enabled: enabled || highlightEnabled,
+        source: 'iframe-highlight-injector'
+      }, '*');
+    }
+  };
+
+  // 通知父窗口脚本已加载
+  try {
+    window.parent.postMessage({
+      type: "iframe-highlight-ready",
+      data: {
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now()
+      },
+      source: "iframe-highlight-injector"
+    }, "*");
+  } catch (error) {
+    console.warn("无法发送就绪消息到父窗口:", error);
+  }
+
+  // 清理函数
+  window.__iframeHighlightCleanup = function () {
+    fullyDisableHighlight();
+    window.removeEventListener("message", handleParentMessage);
+    if (overlay.parentElement) {
+      overlay.parentElement.removeChild(overlay);
+    }
+    delete window.__iframeHighlightInitialized;
+    delete window.__iframeHighlightCleanup;
+  };
+})();
+
+</script>
+
+<script>
+/**
+ * Iframe 元素高亮注入脚本
+ * 需要在目标网站中引入此脚本来支持跨域 iframe 高亮功能
+ *
+ * 使用方法：
+ * 1. 将此脚本添加到目标网站的 HTML 中
+ * 2. 或通过浏览器扩展、用户脚本等方式注入
+ */
+
+(function () {
+  "use strict";
+
+  // 检查是否在 iframe 中
+  if (window.self === window.top) {
+    return; // 不在 iframe 中，不执行
+  }
+
+  // 检查是否已经初始化过
+  if (window.__iframeHighlightInitialized) {
+    return;
+  }
+  window.__iframeHighlightInitialized = true;
+  console.log("Iframe 高亮脚本已加载");
+
+  // 创建高亮覆盖层
+  var overlay = document.createElement("div");
+  overlay.id = "iframe-highlight-overlay";
+  overlay.style.cssText = "\n    position: fixed;\n    top: 0;\n    left: 0;\n    width: 100vw;\n    height: 100vh;\n    pointer-events: none;\n    z-index: 999999;\n    overflow: hidden;\n  ";
+
+  // 创建悬停高亮框（虚线边框）
+  var highlightBox = document.createElement("div");
+  highlightBox.id = "iframe-highlight-box";
+  highlightBox.style.cssText = "\n    position: absolute;\n    border: 2px dashed #007AFF;\n    background: rgba(0, 122, 255, 0.08);\n    pointer-events: none;\n    display: none;\n    transition: all 0.1s ease;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);\n    border-radius: 2px;\n  ";
+
+  // 创建选中节点的常驻高亮框（实线边框）
+  var selectedBox = document.createElement("div");
+  selectedBox.id = "iframe-selected-box";
+  selectedBox.style.cssText = "\n    position: absolute;\n    border: 2px solid #007AFF;\n    pointer-events: none;\n    display: none;\n    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 107, 53, 0.4);\n    border-radius: 2px;\n    z-index: 1000000;\n  ";
+
+  // 创建悬停标签显示
+  var tagLabel = document.createElement("div");
+  tagLabel.id = "iframe-tag-label";
+  tagLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 2px 6px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 2px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000001;\n    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);\n    font-weight: 500;\n  ";
+
+  // 创建选中节点标签
+  var selectedLabel = document.createElement("div");
+  selectedLabel.id = "iframe-selected-label";
+  selectedLabel.style.cssText = "\n    position: absolute;\n    background: #007AFF;\n    color: white;\n    padding: 3px 8px;\n    font-size: 11px;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    border-radius: 3px;\n    pointer-events: none;\n    display: none;\n    white-space: nowrap;\n    z-index: 1000002;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);\n    font-weight: 600;\n  ";
+  overlay.appendChild(highlightBox);
+  overlay.appendChild(selectedBox);
+  overlay.appendChild(tagLabel);
+  overlay.appendChild(selectedLabel);
+  document.body.appendChild(overlay);
+
+  // 存储当前选中的元素
+  var selectedElement = null;
+  var highlightEnabled = false;
+
+  // 更新选中元素的高亮显示
+  function updateSelectedHighlight(element) {
+    console.log("updateSelectedHighlight called with:", element);
+    if (!element) {
+      selectedBox.style.display = "none";
+      selectedLabel.style.display = "none";
+      selectedElement = null;
+      console.log("Cleared selected highlight");
+      return;
+    }
+    selectedElement = element;
+    var rect = element.getBoundingClientRect();
+    console.log("Selected element rect:", rect);
+
+    // 更新选中高亮框位置
+    selectedBox.style.display = "block";
+    selectedBox.style.left = "".concat(rect.left - 2, "px");
+    selectedBox.style.top = "".concat(rect.top - 2, "px");
+    selectedBox.style.width = "".concat(rect.width + 4, "px");
+    selectedBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新选中标签位置和内容
+    selectedLabel.style.display = "block";
+    selectedLabel.textContent = "\u2713 <".concat(element.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 28;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 5) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    var labelWidth = selectedLabel.offsetWidth || 100; // 预估宽度
+    if (labelLeft + labelWidth > window.innerWidth - 10) {
+      labelLeft = window.innerWidth - labelWidth - 10;
+    }
+    selectedLabel.style.left = "".concat(Math.max(5, labelLeft), "px");
+    selectedLabel.style.top = "".concat(labelTop, "px");
+    console.log("Selected highlight positioned at:", {
+      left: selectedBox.style.left,
+      top: selectedBox.style.top,
+      width: selectedBox.style.width,
+      height: selectedBox.style.height
+    });
+  }
+  function getElementSelector(element) {
+    if (!(element instanceof Element)) throw new Error('Argument must be a DOM element');
+    var segments = [];
+    var current = element;
+    while (current !== document.documentElement) {
+      var selector = '';
+      // 优先检查唯一ID
+      if (current.id && document.querySelectorAll("#".concat(current.id)).length === 1) {
+        segments.unshift("#".concat(current.id));
+        break; // ID唯一，无需继续向上
+      }
+
+      // 生成类名选择器（取第一个有效类名）
+      var classes = Array.from(current.classList).filter(function (c) {
+        return !c.startsWith('js-');
+      });
+      var className = classes.length > 0 ? ".".concat(classes[0]) : '';
+
+      // 生成位置索引（nth-child）
+      var tag = current.tagName.toLowerCase();
+      if (!className) {
+        var siblings = Array.from(current.parentNode.children);
+        var index = siblings.findIndex(function (el) {
+          return el === current;
+        }) + 1;
+        selector = "".concat(tag, ":nth-child(").concat(index, ")");
+      } else {
+        selector = className;
+      }
+      segments.unshift(selector);
+      current = current.parentElement;
+    }
+
+    // 处理根元素
+    if (current === document.documentElement) {
+      segments.unshift('html');
+    }
+    return segments.join(' > ');
+  }
+
+  // 获取元素文本内容
+  function getElementText(element) {
+    var _element$textContent;
+    if (element.tagName === "INPUT") {
+      return element.value || element.placeholder || "";
+    }
+    if (element.tagName === "TEXTAREA") {
+      return element.value || element.placeholder || "";
+    }
+    var text = ((_element$textContent = element.textContent) === null || _element$textContent === void 0 ? void 0 : _element$textContent.trim()) || "";
+    return text.length > 50 ? text.substring(0, 50) + "..." : text;
+  }
+
+  // 获取元素属性信息
+  function getElementAttributes(element) {
+    var attrs = {};
+    for (var i = 0; i < element.attributes.length; i++) {
+      var attr = element.attributes[i];
+      attrs[attr.name] = attr.value;
+    }
+    return attrs;
+  }
+
+  // 鼠标悬停事件处理
+  function handleMouseOver(e) {
+    if (!highlightEnabled) return;
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免高亮 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 如果是已选中的元素，不显示悬停高亮
+    if (target === selectedElement) {
+      highlightBox.style.display = "none";
+      tagLabel.style.display = "none";
+      return;
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+
+    // 更新悬停高亮框位置
+    highlightBox.style.display = "block";
+    highlightBox.style.left = "".concat(rect.left - 2, "px");
+    highlightBox.style.top = "".concat(rect.top - 2, "px");
+    highlightBox.style.width = "".concat(rect.width + 4, "px");
+    highlightBox.style.height = "".concat(rect.height + 4, "px");
+
+    // 更新标签位置和内容
+    tagLabel.style.display = "block";
+    tagLabel.textContent = "<".concat(target.tagName.toLowerCase(), ">");
+
+    // 计算标签位置，确保不超出视窗
+    var labelTop = rect.top - 22;
+    var labelLeft = rect.left;
+
+    // 如果标签会超出顶部，显示在元素下方
+    if (labelTop < 0) {
+      labelTop = rect.bottom + 5;
+    }
+
+    // 如果标签会超出右侧，向左调整
+    if (labelLeft + tagLabel.offsetWidth > window.innerWidth) {
+      labelLeft = window.innerWidth - tagLabel.offsetWidth - 5;
+    }
+    tagLabel.style.left = "".concat(Math.max(0, labelLeft), "px");
+    tagLabel.style.top = "".concat(labelTop, "px");
+
+    // 发送消息到父窗口
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 鼠标离开事件处理
+  function handleMouseOut(e) {
+    if (!highlightEnabled) return;
+    var relatedTarget = e.relatedTarget;
+
+    // 如果鼠标移动到高亮相关元素上，不隐藏高亮
+    if (relatedTarget && (relatedTarget === highlightBox || relatedTarget === tagLabel || relatedTarget === overlay || relatedTarget === selectedBox || relatedTarget === selectedLabel)) {
+      return;
+    }
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-hover",
+        data: null,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 点击事件处理
+  function handleClick(e) {
+    var target = e.target;
+    if (!target || target === overlay || target === highlightBox || target === tagLabel || target === selectedBox || target === selectedLabel) {
+      return;
+    }
+
+    // 避免处理 html 和 body 元素
+    if (target === document.documentElement || target === document.body) {
+      return;
+    }
+
+    // 检查是否是交互元素，这些元素需要保留默认行为
+    var isInteractiveElement = ['input', 'textarea', 'select', 'button', 'a'].includes(target.tagName.toLowerCase());
+
+    // 如果高亮功能启用，对于非交互元素阻止默认行为和事件传播
+    if (highlightEnabled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    var rect = target.getBoundingClientRect();
+    var selector = getElementSelector(target);
+    var text = getElementText(target);
+    var attributes = getElementAttributes(target);
+    console.log("Element clicked:", {
+      tagName: target.tagName,
+      selector: selector,
+      rect: rect
+    });
+
+    // 立即更新选中高亮
+    updateSelectedHighlight(target);
+
+    // 隐藏悬停高亮，因为现在是选中状态
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    var elementInfo = {
+      tagName: target.tagName.toLowerCase(),
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y
+      },
+      selector: selector,
+      text: text,
+      attributes: attributes,
+      url: window.location.href,
+      path: window.location.pathname,
+      timestamp: Date.now()
+    };
+    try {
+      window.parent.postMessage({
+        type: "iframe-element-click",
+        data: elementInfo,
+        source: "iframe-highlight-injector"
+      }, "*");
+    } catch (error) {
+      console.warn("无法发送消息到父窗口:", error);
+    }
+  }
+
+  // 监听来自父窗口的消息
+  function handleParentMessage(event) {
+    console.log("Received message from parent:", event.data);
+    if (event.data.type === "iframe-highlight-toggle") {
+      var enabled = event.data.enabled;
+      console.log("Highlight toggle:", enabled);
+      if (enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "enable-iframe-highlight") {
+      console.log("Enable iframe highlight");
+      enableHighlight();
+    } else if (event.data.type === "disable-iframe-highlight") {
+      console.log("Disable iframe highlight");
+      disableHighlight();
+    } else if (event.data.type === "toggle-iframe-highlight") {
+      var _enabled = event.data.enabled !== undefined ? event.data.enabled : !highlightEnabled;
+      console.log("Toggle iframe highlight to:", _enabled);
+      if (_enabled) {
+        enableHighlight();
+      } else {
+        disableHighlight();
+      }
+    } else if (event.data.type === "update-selected-element") {
+      var selector = event.data.selector;
+      console.log("Update selected element with selector:", selector);
+      if (selector) {
+        try {
+          var element = document.querySelector(selector);
+          console.log("Found element by selector:", element);
+          updateSelectedHighlight(element);
+        } catch (error) {
+          console.warn("Failed to select element:", error);
+          updateSelectedHighlight(null);
+        }
+      } else {
+        updateSelectedHighlight(null);
+      }
+    } else if (event.data.type === "clear-selected-element") {
+      console.log("Clear selected element");
+      updateSelectedHighlight(null);
+    }
+  }
+
+  // 启用高亮功能
+  function enableHighlight() {
+    console.log("Enabling highlight");
+    document.addEventListener("mouseover", handleMouseOver, true);
+    document.addEventListener("mouseout", handleMouseOut, true);
+    document.addEventListener("click", handleClick, true);
+    highlightEnabled = true;
+    overlay.style.display = "block";
+  }
+
+  // 禁用高亮功能
+  function disableHighlight() {
+    console.log("Disabling highlight");
+    highlightEnabled = false;
+    // 保持事件监听器，但通过 highlightEnabled 变量控制行为
+    // 这样可以保留选中状态的显示
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    // 不隐藏 selectedBox 和 selectedLabel，保留选中状态
+  }
+
+  // 完全禁用高亮功能（移除所有监听器）
+  function fullyDisableHighlight() {
+    console.log("Fully disabling highlight");
+    highlightEnabled = false;
+    document.removeEventListener("mouseover", handleMouseOver, true);
+    document.removeEventListener("mouseout", handleMouseOut, true);
+    document.removeEventListener("click", handleClick, true);
+    overlay.style.display = "none";
+    highlightBox.style.display = "none";
+    tagLabel.style.display = "none";
+    selectedBox.style.display = "none";
+    selectedLabel.style.display = "none";
+  }
+
+  // 添加事件监听
+  enableHighlight();
+  window.addEventListener("message", handleParentMessage);
+
+  // 暴露全局函数供外部调用
+  window.__iframeHighlightControl = {
+    enable: enableHighlight,
+    disable: disableHighlight,
+    fullyDisable: fullyDisableHighlight,
+    isEnabled: function isEnabled() {
+      return highlightEnabled;
+    },
+    getSelectedElement: function getSelectedElement() {
+      return selectedElement;
+    },
+    updateSelected: updateSelectedHighlight,
+    // 通过消息发送开关控制
+    sendToggleMessage: function sendToggleMessage(enabled) {
+      window.parent.postMessage({
+        type: 'iframe-highlight-status',
+        enabled: enabled || highlightEnabled,
+        source: 'iframe-highlight-injector'
+      }, '*');
+    }
+  };
+
+  // 通知父窗口脚本已加载
+  try {
+    window.parent.postMessage({
+      type: "iframe-highlight-ready",
+      data: {
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now()
+      },
+      source: "iframe-highlight-injector"
+    }, "*");
+  } catch (error) {
+    console.warn("无法发送就绪消息到父窗口:", error);
+  }
+
+  // 清理函数
+  window.__iframeHighlightCleanup = function () {
+    fullyDisableHighlight();
+    window.removeEventListener("message", handleParentMessage);
+    if (overlay.parentElement) {
+      overlay.parentElement.removeChild(overlay);
+    }
+    delete window.__iframeHighlightInitialized;
+    delete window.__iframeHighlightCleanup;
+  };
+})();
+
+</script>
+</body>
+</html>
