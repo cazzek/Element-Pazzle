@@ -387,7 +387,7 @@
         <div class="header">
             <div class="title-block">
                 <div class="title">元素パズル</div>
-                <div class="version" id="app-version">v1.0.3</div>
+                <div class="version" id="app-version">v1.0.4</div>
             </div>
             <div class="score-area">
                 <div class="next-element">
@@ -456,6 +456,7 @@
         const COMBO_TIMEOUT = 1500; // コンボ継続時間（ms）
         const MAX_PARTICLES = 120;      // 画面上のパーティクル上限
         const MAX_FLOATING_TEXTS = 20;  // 点数テキストの同時表示上限
+        const ELEMENT_NAME_FONT_PX = 14; // 元素名のフォントサイズ（炭素基準で一律）
 
         // Matter.js modules
         const { Engine, Render, Runner, Bodies, Body, Composite, Events, Mouse, Vector } = Matter;
@@ -700,16 +701,28 @@
             bodies.forEach(body => {
                 if (body.label === 'ball' && body.plugin && body.plugin.elementIndex !== undefined) {
                     const element = ELEMENTS[body.plugin.elementIndex];
+                    const elementIndex = body.plugin.elementIndex;
                     ctx.save();
                     ctx.translate(body.position.x, body.position.y);
                     ctx.rotate(body.angle);
 
-                    // Draw symbol
                     ctx.fillStyle = 'white';
-                    ctx.font = `bold ${element.radius * 0.8}px Arial`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(element.symbol, 0, 0);
+
+                    if (elementIndex >= 5) { // C(炭素) 以降は記号＋名前
+                        // 記号は少し上
+                        ctx.font = `bold ${element.radius * 0.8}px Arial`;
+                        ctx.fillText(element.symbol, 0, -element.radius * 0.2);
+
+                        // 元素名は一律サイズ
+                        ctx.font = `bold ${ELEMENT_NAME_FONT_PX}px Arial`;
+                        ctx.fillText(element.name, 0, element.radius * 0.55);
+                    } else {
+                        // 元素名がない（H〜B）は記号をセンター
+                        ctx.font = `bold ${element.radius * 0.8}px Arial`;
+                        ctx.fillText(element.symbol, 0, 0);
+                    }
 
                     ctx.restore();
                 }
@@ -734,10 +747,23 @@
 
                 ctx.globalAlpha = 1;
                 ctx.fillStyle = 'white';
-                ctx.font = `bold ${element.radius * 0.8}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(element.symbol, clampedX, previewY);
+
+                const currentIndex = currentElement;
+                if (currentIndex >= 5) { // C(炭素) 以降は記号＋名前
+                    // 記号は少し上
+                    ctx.font = `bold ${element.radius * 0.8}px Arial`;
+                    ctx.fillText(element.symbol, clampedX, previewY - element.radius * 0.2);
+
+                    // 元素名は一律サイズ
+                    ctx.font = `bold ${ELEMENT_NAME_FONT_PX}px Arial`;
+                    ctx.fillText(element.name, clampedX, previewY + element.radius * 0.55);
+                } else {
+                    // 元素名がない（H〜B）は記号をセンター
+                    ctx.font = `bold ${element.radius * 0.8}px Arial`;
+                    ctx.fillText(element.symbol, clampedX, previewY);
+                }
 
                 ctx.beginPath();
                 ctx.setLineDash([5, 5]);
