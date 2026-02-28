@@ -387,7 +387,7 @@
         <div class="header">
             <div class="title-block">
                 <div class="title">元素パズル</div>
-                <div class="version" id="app-version">v1.0.2</div>
+                <div class="version" id="app-version">v1.0.3</div>
             </div>
             <div class="score-area">
                 <div class="next-element">
@@ -454,6 +454,8 @@
         const DANGER_LINE_Y = 80;
         const DROP_DELAY = 500;
         const COMBO_TIMEOUT = 1500; // コンボ継続時間（ms）
+        const MAX_PARTICLES = 120;      // 画面上のパーティクル上限
+        const MAX_FLOATING_TEXTS = 20;  // 点数テキストの同時表示上限
 
         // Matter.js modules
         const { Engine, Render, Runner, Bodies, Body, Composite, Events, Mouse, Vector } = Matter;
@@ -593,12 +595,14 @@
         // Create merge effect
         function createMergeEffect(x, y, color, points) {
             // Create particles
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < 16; i++) {
+                if (particles.length >= MAX_PARTICLES) break;
                 particles.push(new Particle(x, y, color));
             }
 
             // Create ring effect particles
-            for (let i = 0; i < 12; i++) {
+            for (let i = 0; i < 8; i++) {
+                if (particles.length >= MAX_PARTICLES) break;
                 const angle = (i / 12) * Math.PI * 2;
                 const p = new Particle(x, y, '#ffffff');
                 p.vx = Math.cos(angle) * 8;
@@ -611,9 +615,15 @@
             // Floating score text
             const comboMultiplier = Math.max(1, combo);
             const totalPoints = points * comboMultiplier;
+            if (floatingTexts.length >= MAX_FLOATING_TEXTS) {
+                floatingTexts.shift();
+            }
             floatingTexts.push(new FloatingText(x, y - 30, `+${totalPoints}`, color));
 
             if (combo > 1) {
+                if (floatingTexts.length >= MAX_FLOATING_TEXTS) {
+                    floatingTexts.shift();
+                }
                 floatingTexts.push(new FloatingText(x, y - 55, `x${combo} COMBO!`, '#ff6b6b'));
             }
 
